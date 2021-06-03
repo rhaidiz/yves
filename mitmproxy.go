@@ -3,7 +3,7 @@ package yves
 import (
 	"context"
 	"crypto/tls"
-	"net"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -12,10 +12,22 @@ import (
 
 type Proxy struct {
 	// The Transport used by the proxy and the remote host
-	Tr *http.Transport
+	httpClient *http.Client
 
 	// The TLS configuration to use for remote connections
 	TlsConfig *tls.Config
+}
+
+func GetDefault() *Proxy {
+	cl := &http.Client{
+		Transport: &http.Transport{},
+		Timeout:   time.Second * 10}
+
+	return &Proxy{httpClient: cl}
+}
+
+func GetWithCustomClient(cl *http.Client) *Proxy {
+	return &Proxy{httpClient: cl}
 }
 
 func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
@@ -27,9 +39,11 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		return
 	}
 
+	//Bleah: Needed only for HTTPS
+	//And what about HTTP2?
 	// this is the connection with the client
-	clientStream, _, err := hijacker.Hijack()
-	defer clientStream.Close()
+	clientConn, _, err := hijacker.Hijack()
+	defer clientConn.Close()
 
 	if err != nil {
 		http.Error(wrt, err.Error(), http.StatusInternalServerError)
@@ -38,7 +52,6 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 
 	if req.Method != http.MethodConnect {
 		// this is a plaintext HTTP connection
-
 		reqClone := req.Clone(context.TODO())
 		if err != nil {
 			http.Error(wrt, err.Error(), http.StatusInternalServerError)
@@ -54,38 +67,39 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 
 		// forward the response back to the client
-		p.forwardResp(resp, clientStream, reqClone)
+		p.forwardResp(resp, clientConn, reqClone)
 
 	} else {
 		// CONNECT not yet supported
+		// dial to remote host
+		// send 200 ok to client
+		// startTLS with client
+		// read request from connection with client
+		// forward request
+		// forward response
 	}
 }
 
-func (p *Proxy) forwardReq(req *http.Request, remoteHost string) (*http.Response, error) {
+//Takes the client request, eventually modifies it and sends it to the intended destination host
+func (p *Proxy) forwardReq(clientRequest *http.Request, destinationHost string) (*http.Response, error) {
 
-	timeout := time.Duration(5 * time.Second)
+	//some things are missing, like timeouts etc, refer to blogpost (?)
 
-	tr := &http.Transport{}
+	//Custom requests??
+	clientRequest.RequestURI = ""
 
-	if p.Tr != nil {
-		tr = p.Tr
-	}
-
-	cl := &http.Client{Transport: tr, Timeout: timeout}
-	req.RequestURI = ""
-
-	u, err := url.Parse(remoteHost)
+	u, err := url.Parse(destinationHost)
 	if err != nil {
 		return nil, err
 	}
 
-	req.URL = u
-	return cl.Do(req)
+	clientRequest.URL = u
+	return p.httpClient.Do(clientRequest)
 }
 
 // TODO: maybe the forwardResp can be better?
-func (p *Proxy) forwardResp(resp *http.Response, down net.Conn, req *http.Request) (int, error) {
+//forwardResp takes the origin reply, eventually modifies it and returns it to the client
+func (p *Proxy) forwardResp(resp *http.Response, down io.Writer, req *http.Request) (int, error) {
 	dump, _ := httputil.DumpResponse(resp, true)
-	defer down.Close()
 	return down.Write(dump)
 }
