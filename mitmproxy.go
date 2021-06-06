@@ -16,6 +16,15 @@ type Proxy struct {
 
 	// The TLS configuration to use for remote connections
 	TlsConfig *tls.Config
+
+	proxyFunctions []ProxyFunction
+}
+
+type ProxyFunction struct {
+	// returns if the request needs to be dropped, if there is a response hook and the new request
+	Func    func(*http.Request) (*http.Request, func(*http.Request, *http.Response) *http.Response)
+	Order   uint
+	Enabled bool
 }
 
 func GetDefault() *Proxy {
@@ -58,12 +67,45 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 			return
 		}
 
+		var respoonseHandlers []func(*http.Request, *http.Response) *http.Response
+
+		//Hijack request here
+		for i, r := range p.proxyFunctions {
+			if !r.Enabled {
+				continue
+			}
+			//Is this even needed? Maybe to sort
+			r.Order = uint(i + 1)
+			reqClone, responseFunc := r.Func(reqClone)
+
+			if reqClone == nil {
+				//Abort
+				clientConn.Close()
+				return
+			}
+
+			if responseFunc != nil {
+				//Add to response array
+				respoonseHandlers = append(respoonseHandlers, responseFunc)
+			}
+		}
+
 		// Forward the request to the remote host
 		resp, err := p.forwardReq(req, req.RequestURI)
 
 		if err != nil {
 			http.Error(wrt, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		//Hijack response here
+		for _, rh := range respoonseHandlers {
+			resp = rh(reqClone, resp)
+			if resp == nil {
+				//Abort
+				clientConn.Close()
+				return
+			}
 		}
 
 		// forward the response back to the client
