@@ -1,9 +1,11 @@
 package yves
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -35,7 +37,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 	hijacker, ok := wrt.(http.Hijacker)
 
 	if !ok {
-		http.Error(wrt, "Hijacking not supported", http.StatusInternalServerError)
+		HttpError(wrt, "Hijacking not supported", http.StatusInternalServerError)
 		return
 	}
 
@@ -46,7 +48,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 	defer clientConn.Close()
 
 	if err != nil {
-		http.Error(wrt, err.Error(), http.StatusInternalServerError)
+		HttpError(wrt, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -54,7 +56,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		// this is a plaintext HTTP connection
 		reqClone := req.Clone(context.TODO())
 		if err != nil {
-			http.Error(wrt, err.Error(), http.StatusInternalServerError)
+			HttpError(wrt, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -62,12 +64,16 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		resp, err := p.forwardReq(req, req.RequestURI)
 
 		if err != nil {
-			http.Error(wrt, err.Error(), http.StatusInternalServerError)
+			HttpError(wrt, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// forward the response back to the client
-		p.forwardResp(resp, clientConn, reqClone)
+		_, error := p.forwardResp(resp, clientConn, reqClone)
+		if error != nil {
+			HttpError(clientConn, error.Error(), http.StatusInternalServerError)
+			return
+		}
 
 	} else {
 		// CONNECT not yet supported
@@ -100,6 +106,26 @@ func (p *Proxy) forwardReq(clientRequest *http.Request, destinationHost string) 
 // TODO: maybe the forwardResp can be better?
 //forwardResp takes the origin reply, eventually modifies it and returns it to the client
 func (p *Proxy) forwardResp(resp *http.Response, down io.Writer, req *http.Request) (int, error) {
-	dump, _ := httputil.DumpResponse(resp, true)
+	dump, error := httputil.DumpResponse(resp, true)
+	if error != nil {
+		return 0, error
+	}
 	return down.Write(dump)
+}
+
+func HttpError(conn io.Writer, er string, code int) {
+	rsp := &http.Response{
+		ProtoMajor: 1,
+		ProtoMinor: 1,
+		StatusCode: code,
+		Header:     make(map[string][]string),
+		Body:       ioutil.NopCloser(bytes.NewBufferString(er)),
+	}
+	rsp.Header.Add("Content-Type", "text/plain; charset=utf-8")
+	rsp.Header.Add("X-Content-Type-Options", "nosniff")
+	dump, error := httputil.DumpResponse(rsp, true)
+	if error != nil {
+		//TODO: add error handling here
+	}
+	conn.Write(dump)
 }
