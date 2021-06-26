@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,17 @@ type Proxy struct {
 
 	// The TLS configuration to use for remote connections
 	TlsConfig *tls.Config
+
+	// Request handler
+	HandleRequest func(int64, *http.Request) *http.Response
+
+	// Response handler
+	HandleResponse func(int64, *http.Request, *http.Response)
+
+	// Session is used to count the number of requests received
+	// so that it is possible to correlate requests and responses from the handlers
+	session      int64
+	sessionMutex sync.Mutex
 }
 
 func GetDefault() *Proxy {
@@ -33,6 +45,10 @@ func GetWithCustomClient(cl *http.Client) *Proxy {
 }
 
 func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
+	p.sessionMutex.Lock()
+	ctx := context.WithValue(context.Background(), "session", p.session)
+	p.session = p.session + 1
+	p.sessionMutex.Unlock()
 	// hijack the connection with the client
 	hijacker, ok := wrt.(http.Hijacker)
 
@@ -61,7 +77,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 
 		// Forward the request to the remote host
-		resp, err := p.forwardReq(req, req.RequestURI)
+		resp, err := p.forwardReq(ctx, req, req.RequestURI)
 
 		if err != nil {
 			HttpError(wrt, err.Error(), http.StatusInternalServerError)
@@ -69,7 +85,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 
 		// forward the response back to the client
-		_, error := p.forwardResp(resp, clientConn, reqClone)
+		_, error := p.forwardResp(ctx, resp, clientConn, reqClone)
 		if error != nil {
 			HttpError(clientConn, error.Error(), http.StatusInternalServerError)
 			return
@@ -86,12 +102,18 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 	}
 }
 
-//Takes the client request, eventually modifies it and sends it to the intended destination host
-func (p *Proxy) forwardReq(clientRequest *http.Request, destinationHost string) (*http.Response, error) {
+// Takes the client request, eventually modifies it and sends it to the intended destination host
+func (p *Proxy) forwardReq(ctx context.Context, clientRequest *http.Request, destinationHost string) (*http.Response, error) {
 
+	if p.HandleRequest != nil {
+		// call to HandleRequest
+		hResp := p.HandleRequest(ctx.Value("session").(int64), clientRequest)
+		if hResp != nil {
+			return hResp, nil
+		}
+	}
 	//some things are missing, like timeouts etc, refer to blogpost (?)
 
-	//Custom requests??
 	clientRequest.RequestURI = ""
 
 	u, err := url.Parse(destinationHost)
@@ -103,9 +125,10 @@ func (p *Proxy) forwardReq(clientRequest *http.Request, destinationHost string) 
 	return p.httpClient.Do(clientRequest)
 }
 
-// TODO: maybe the forwardResp can be better?
-//forwardResp takes the origin reply, eventually modifies it and returns it to the client
-func (p *Proxy) forwardResp(resp *http.Response, down io.Writer, req *http.Request) (int, error) {
+func (p *Proxy) forwardResp(ctx context.Context, resp *http.Response, down io.Writer, req *http.Request) (int, error) {
+	if p.HandleResponse != nil {
+		p.HandleResponse(ctx.Value("session").(int64), req, resp)
+	}
 	dump, error := httputil.DumpResponse(resp, true)
 	if error != nil {
 		return 0, error
