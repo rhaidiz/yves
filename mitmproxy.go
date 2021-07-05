@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"sync"
 	"time"
@@ -85,7 +84,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		}
 
 		// forward the response back to the client
-		_, error := p.forwardResp(ctx, resp, clientConn, reqClone)
+		error := p.forwardResp(ctx, resp, clientConn, reqClone)
 		if error != nil {
 			HttpError(clientConn, error.Error(), http.StatusInternalServerError)
 			return
@@ -125,15 +124,11 @@ func (p *Proxy) forwardReq(ctx context.Context, clientRequest *http.Request, des
 	return p.httpClient.Do(clientRequest)
 }
 
-func (p *Proxy) forwardResp(ctx context.Context, resp *http.Response, down io.Writer, req *http.Request) (int, error) {
+func (p *Proxy) forwardResp(ctx context.Context, resp *http.Response, down io.Writer, req *http.Request) error {
 	if p.HandleResponse != nil {
 		p.HandleResponse(ctx.Value("session").(int64), req, resp)
 	}
-	dump, error := httputil.DumpResponse(resp, true)
-	if error != nil {
-		return 0, error
-	}
-	return down.Write(dump)
+	return resp.Write(down)
 }
 
 func HttpError(conn io.Writer, er string, code int) {
@@ -146,9 +141,5 @@ func HttpError(conn io.Writer, er string, code int) {
 	}
 	rsp.Header.Add("Content-Type", "text/plain; charset=utf-8")
 	rsp.Header.Add("X-Content-Type-Options", "nosniff")
-	dump, error := httputil.DumpResponse(rsp, true)
-	if error != nil {
-		//TODO: add error handling here
-	}
-	conn.Write(dump)
+	rsp.Write(conn)
 }
