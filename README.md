@@ -33,11 +33,26 @@ func main() {
 }
 ```
 
-## Requests handlers
-TBD
+## Request handler
+The following example shows how to use request handler to add a custom header to every request:
+```go
+proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
+	req.Header.Add("custom", "myval")
+	log.Printf("session: %v\n", id)
+	return nil
+}
+```
 
-## Responses handlers
-TBD
+## Response handler
+The following example shows how to prevent access to a requests performed toward a specific host.
+
+```go
+proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
+	if req.Host == "example.com" {
+		return &http.Response{StatusCode: 500}
+	}
+	return nil
+```
 
 # A quick question ... why?
 Because we can ... or we try.
