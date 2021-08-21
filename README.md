@@ -26,7 +26,7 @@ import (
 func main() {
 
         // create a new mitm proxy
-        proxy := yves.GetDefault()
+        proxy := &yves.Proxy{}
 
         // Listen on local port 8080
         log.Fatal(http.ListenAndServe(":8080", proxy))
