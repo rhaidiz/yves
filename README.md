@@ -57,5 +57,3 @@ proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
 # A quick question ... why?
 Because we can ... or we try.
 
-# TODOs
-[ ] Introduce gomodules
