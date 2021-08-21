@@ -21,7 +21,7 @@ var okHeader = "HTTP/1.1 200 OK\r\n\r\n"
 
 type Proxy struct {
 	// The Transport used by the proxy and the remote host
-	httpClient *http.Client
+	HttpClient *http.Client
 
 	// The TLS configuration to use for remote connections
 	TlsConfig *tls.Config
@@ -41,26 +41,12 @@ type Proxy struct {
 	// key and certificate in PEM format.
 	CaKey  []byte
 	CaCert []byte
-}
 
-func GetDefault() *Proxy {
-	certs = make(map[string]*tls.Certificate)
-	cl := &http.Client{
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-		Transport: &http.Transport{},
-		Timeout:   time.Second * 10}
-
-	return &Proxy{httpClient: cl}
-}
-
-func GetWithCustomClient(cl *http.Client) *Proxy {
-	certs = make(map[string]*tls.Certificate)
-	return &Proxy{httpClient: cl}
+	loadProxy sync.Once
 }
 
 func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
+	p.loadProxy.Do(p.load)
 	p.sessionMutex.Lock()
 	ctx := context.WithValue(context.Background(), "session", p.session)
 	p.session = p.session + 1
@@ -180,7 +166,7 @@ func (p *Proxy) forwardReq(ctx context.Context, clientRequest *http.Request, des
 
 	clientRequest.URL.Scheme = u.Scheme
 	clientRequest.URL.Host = u.Host
-	return p.httpClient.Do(clientRequest)
+	return p.HttpClient.Do(clientRequest)
 }
 
 func (p *Proxy) forwardResp(ctx context.Context, resp *http.Response, down io.Writer, req *http.Request) error {
@@ -201,6 +187,18 @@ func HttpError(conn io.Writer, er string, code int) {
 	rsp.Header.Add("Content-Type", "text/plain; charset=utf-8")
 	rsp.Header.Add("X-Content-Type-Options", "nosniff")
 	rsp.Write(conn)
+}
+
+func (p *Proxy) load() {
+	certs = make(map[string]*tls.Certificate)
+	cl := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{},
+		Timeout:   time.Second * 10}
+	p.HttpClient = cl
+	fmt.Println("proxy loaded")
 }
 
 // startTlsWithClient starts a TLS connection with the client.
