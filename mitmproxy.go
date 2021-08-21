@@ -46,6 +46,9 @@ type Proxy struct {
 func GetDefault() *Proxy {
 	certs = make(map[string]*tls.Certificate)
 	cl := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
 		Transport: &http.Transport{},
 		Timeout:   time.Second * 10}
 
