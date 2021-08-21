@@ -198,7 +198,10 @@ func (p *Proxy) load() {
 		Transport: &http.Transport{},
 		Timeout:   time.Second * 10}
 	p.HttpClient = cl
-	fmt.Println("proxy loaded")
+	if p.CaCert == nil || p.CaKey == nil {
+		p.CaCert = caCert
+		p.CaKey = caKey
+	}
 }
 
 // startTlsWithClient starts a TLS connection with the client.
