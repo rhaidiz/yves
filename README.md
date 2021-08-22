@@ -1,11 +1,11 @@
 # Yves
-Yves is what eveyone was wating for, an HTTP(s) intercept proxy.
-Yes, that's pretty much it.
+Yves is what no one asked for: an HTTP(s) Man-in-The-Middle proxy.
+Before you ask, yes, that's pretty much it.
 
-# Features
-* HTTP\S man-in-the-middle proxy;
-* Custom HTTP request handlers;
-* Custom HTTP responses handlers;
+# Main Features
+* HTTP(s) Man-in-The-Middle proxy;
+* Custom HTTP requests handlers;
+* Custom HTTP responses handlers.
 
 # Usage
 
