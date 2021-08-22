@@ -9,6 +9,8 @@ Yes, that's pretty much it.
 
 # Usage
 
+More usage examples can be found in the [examples](examples/) folder.
+
 ## Start a server
 The following snippets of code shows how to start a simple mitm proxy.
 More usage examples can be found in the examples folder.
