@@ -20,16 +20,16 @@ import (
 var okHeader = "HTTP/1.1 200 OK\r\n\r\n"
 
 type Proxy struct {
-	// The Transport used by the proxy and the remote host
+	// HttpClient is a working HTTP Client
 	HttpClient *http.Client
 
-	// The TLS configuration to use for remote connections
-	TlsConfig *tls.Config
+	// Tr is the transport used by the HttpClient
+	Tr *http.Transport
 
-	// Request handler
+	// HandleRequest is a function that is executed upon receving a request
 	HandleRequest func(int64, *http.Request) *http.Response
 
-	// Response handler
+	// HandleResponse is a function that is executed when a response is being sent back
 	HandleResponse func(int64, *http.Request, *http.Response)
 
 	// Session is used to count the number of requests received
@@ -41,12 +41,9 @@ type Proxy struct {
 	// key and certificate in PEM format.
 	CaKey  []byte
 	CaCert []byte
-
-	loadProxy sync.Once
 }
 
 func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
-	p.loadProxy.Do(p.load)
 	p.sessionMutex.Lock()
 	ctx := context.WithValue(context.Background(), "session", p.session)
 	p.session = p.session + 1
@@ -189,19 +186,28 @@ func HttpError(conn io.Writer, er string, code int) {
 	rsp.Write(conn)
 }
 
-func (p *Proxy) load() {
+func NewProxy() *Proxy {
+	p := &Proxy{}
 	certs = make(map[string]*tls.Certificate)
+	// By default skip TLS verification
+	p.Tr = &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	// By default:
+	// - do not follow redirection;
+	// - set a 10 seconds timeout
 	cl := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
-		Transport: &http.Transport{},
+		Transport: p.Tr,
 		Timeout:   time.Second * 10}
 	p.HttpClient = cl
 	if p.CaCert == nil || p.CaKey == nil {
 		p.CaCert = caCert
 		p.CaKey = caKey
 	}
+	return p
 }
 
 // startTlsWithClient starts a TLS connection with the client.
