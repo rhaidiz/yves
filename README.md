@@ -26,7 +26,7 @@ import (
 func main() {
 
         // create a new mitm proxy
-        proxy := &yves.Proxy{}
+        proxy := yves.NewProxy()
 
         // Listen on local port 8080
         log.Fatal(http.ListenAndServe(":8080", proxy))
@@ -56,4 +56,3 @@ proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
 
 # A quick question ... why?
 Because we can ... or we try.
-
