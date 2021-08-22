@@ -1,5 +1,5 @@
 # Yves
-Yves is what no one asked for: an HTTP(s) Man-in-The-Middle proxy.
+Yves is a simple HTTP(s) Man-in-The-Middle proxy.
 Before you ask, yes, that's pretty much it.
 
 # Main Features
