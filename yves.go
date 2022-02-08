@@ -18,6 +18,9 @@ import (
 )
 
 var okHeader = "HTTP/1.1 200 OK\r\n\r\n"
+var initMux = false
+var hostname = "yves"
+var mux *http.ServeMux
 
 type Proxy struct {
 	// HttpClient is a working HTTP Client
@@ -41,9 +44,36 @@ type Proxy struct {
 	// key and certificate in PEM format.
 	CaKey  []byte
 	CaCert []byte
+
+	// This an HTTP mux
+	mux http.ServeMux
+}
+
+func (p *Proxy) initMux() {
+	initMux = true
+	mux = http.NewServeMux()
+	mux.HandleFunc("/", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Add("Content-Type", "text/html")
+		rw.Write([]byte("Download the CA <a href=\"/yves_cacert.pem\">here</a>."))
+	})
+	mux.HandleFunc("/yves_cacert.pem", func(rw http.ResponseWriter, _ *http.Request) {
+		rw.Header().Add("Content-Type", "application/octet-stream")
+		rw.Header().Add("Content-Disposition", "attachment; filename=\"yves_cacert.pem\"")
+		rw.Write(p.CaCert)
+	})
 }
 
 func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
+
+	if !initMux {
+		p.initMux()
+	}
+
+	if req.Host == hostname {
+		mux.ServeHTTP(wrt, req)
+		return
+	}
+
 	p.sessionMutex.Lock()
 	ctx := context.WithValue(context.Background(), "session", p.session)
 	p.session = p.session + 1
@@ -52,7 +82,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 	hijacker, ok := wrt.(http.Hijacker)
 
 	if !ok {
-		HttpError(wrt, "Hijacking not supported", http.StatusInternalServerError)
+		HttpResponse(wrt, "Hijacking not supported", http.StatusInternalServerError)
 		return
 	}
 
@@ -63,7 +93,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 	defer clientConn.Close()
 
 	if err != nil {
-		HttpError(wrt, err.Error(), http.StatusInternalServerError)
+		HttpResponse(wrt, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -71,7 +101,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		// this is a plaintext HTTP connection
 		reqClone := req.Clone(context.TODO())
 		if err != nil {
-			HttpError(wrt, err.Error(), http.StatusInternalServerError)
+			HttpResponse(wrt, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -81,14 +111,14 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		resp, err := p.forwardReq(ctx, req, req.RequestURI)
 
 		if err != nil {
-			HttpError(wrt, err.Error(), http.StatusInternalServerError)
+			HttpResponse(wrt, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
 		// forward the response back to the client
 		error := p.forwardResp(ctx, resp, clientConn, reqClone)
 		if error != nil {
-			HttpError(clientConn, error.Error(), http.StatusInternalServerError)
+			//HttpResponse(clientConn, error.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -116,7 +146,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 
 			reqClone := req.Clone(context.TODO())
 			if err != nil {
-				HttpError(wrt, err.Error(), http.StatusInternalServerError)
+				HttpResponse(wrt, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
@@ -127,13 +157,13 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 
 			resp, err := p.forwardReq(ctx, req, destinationHost)
 			if err != nil {
-				HttpError(clientConn, err.Error(), http.StatusInternalServerError)
+				// HttpResponse(clientConn, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			// Do I need to have a write buffer for the connection with the client??
 			error := p.forwardResp(ctx, resp, clientConn, reqClone)
 			if error != nil {
-				HttpError(clientConn, error.Error(), http.StatusInternalServerError)
+				//HttpResponse(clientConn, error.Error(), http.StatusInternalServerError)
 				return
 			}
 			return
@@ -173,7 +203,11 @@ func (p *Proxy) forwardResp(ctx context.Context, resp *http.Response, down io.Wr
 	return resp.Write(down)
 }
 
-func HttpError(conn io.Writer, er string, code int) {
+func Http200OK(conn io.Writer, er string, code int) {
+
+}
+
+func HttpResponse(conn http.ResponseWriter, er string, code int) {
 	rsp := &http.Response{
 		ProtoMajor: 1,
 		ProtoMinor: 1,
@@ -181,8 +215,10 @@ func HttpError(conn io.Writer, er string, code int) {
 		Header:     make(map[string][]string),
 		Body:       ioutil.NopCloser(bytes.NewBufferString(er)),
 	}
-	rsp.Header.Add("Content-Type", "text/plain; charset=utf-8")
+	rsp.Header.Add("Content-Type", "text/html; charset=utf-8")
+	rsp.Header.Add("Custom", "myvalue")
 	rsp.Header.Add("X-Content-Type-Options", "nosniff")
+	conn.Header().Set("Content-Type", "text/html; charset=utf-8")
 	rsp.Write(conn)
 }
 
