@@ -1,6 +1,5 @@
 # Yves
 Yves is a simple HTTP(s) Man-in-The-Middle proxy.
-Before you ask, yes, that's pretty much it.
 
 # Main Features
 * HTTP(s) Man-in-The-Middle proxy;
@@ -56,5 +55,3 @@ proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
 	return nil
 ```
 
-# A quick question ... why?
-Because we can ... or we try.
