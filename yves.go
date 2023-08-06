@@ -133,16 +133,17 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 			clientTlsReader := bufio.NewReader(clientConn)
 			req, err := http.ReadRequest(clientTlsReader)
 			if err != nil {
+				//TODO: handle this case
 				log.Println("not a request")
 			}
 			if isWebSocketRequest(req) {
-				p.serveWebsocket(wrt, req, clientConn)
+				p.serveWebsocket(wrt, req, clientConn, false)
 			}
 			return
 
 		} else {
 			// a TLS connection
-			// here somewhere I have to handle TLS websocket connections
+			// TODO: here somewhere I have to handle TLS websocket connections
 
 			log.Printf("destination host %s\n", destinationHost)
 			// Start a TLS connection with the client.
@@ -167,7 +168,8 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 					log.Printf("this is an HTTP req: %v\n", req)
 
 					if isWebSocketRequest(req) {
-						p.serveWebsocket(wrt, req, clientConn)
+						log.Println("this is a TLS websocket")
+						p.serveWebsocket(wrt, req, clientConn, true)
 					}
 					return
 				}

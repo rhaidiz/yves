@@ -4,11 +4,13 @@ import (
 	"bufio"
 	"crypto/rand"
 	"crypto/sha1"
+	"crypto/tls"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -119,11 +121,17 @@ func (frame *WebsocketFragment) Write(w io.Writer) error {
 	return nil
 }
 
-func (proxy *Proxy) serveWebsocket(w http.ResponseWriter, req *http.Request, clientConn net.Conn) {
-	targetURL := url.URL{Scheme: "ws", Host: req.Host, Path: req.URL.Path}
+func (proxy *Proxy) serveWebsocket(w http.ResponseWriter, req *http.Request, clientConn net.Conn, isTls bool) {
 
-	targetConn, err := proxy.connectDial("tcp", targetURL.Host)
+	targetURL := url.URL{Scheme: "ws", Host: req.Host, Path: req.URL.Path}
+	if isTls {
+		targetURL = url.URL{Scheme: "wss", Host: req.Host + ":443", Path: req.URL.Path}
+	}
+
+	targetConn, err := proxy.connectDial("tcp", targetURL.Host, isTls)
 	if err != nil {
+		//TODO: improve error here
+		log.Print(err)
 		return
 	}
 	defer targetConn.Close()
@@ -138,7 +146,10 @@ func (proxy *Proxy) serveWebsocket(w http.ResponseWriter, req *http.Request, cli
 	proxy.proxyWebsocket(targetConn, clientConn)
 }
 
-func (proxy *Proxy) connectDial(network, addr string) (net.Conn, error) {
+func (proxy *Proxy) connectDial(network, addr string, isTls bool) (net.Conn, error) {
+	if isTls {
+		return tls.Dial(network, addr, &tls.Config{})
+	}
 	return net.Dial(network, addr)
 }
 
@@ -167,12 +178,14 @@ func (proxy *Proxy) websocketHandshake(req *http.Request, targetSiteConn io.Read
 		return err
 	}
 
+	// upgrade protocol request. Actually it probably containes all I need
+	// and I should just keep it the way it is
 	request := &http.Request{
 		Method: "GET",
 		URL: &url.URL{
 			Scheme: "ws",
-			Host:   "127.0.0.1",
-			Path:   "",
+			Host:   req.Host,
+			Path:   req.URL.Path,
 		},
 		Header: http.Header{},
 	}
@@ -192,6 +205,9 @@ func (proxy *Proxy) websocketHandshake(req *http.Request, targetSiteConn io.Read
 		return err
 	}
 	if target_site_response.StatusCode != 101 {
+		log.Printf("%v", target_site_response.StatusCode)
+		body, _ := ioutil.ReadAll(target_site_response.Body)
+		log.Printf("%s", body)
 		return fmt.Errorf("upgrading connection")
 	}
 
