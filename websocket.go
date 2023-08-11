@@ -130,8 +130,7 @@ func (proxy *Proxy) serveWebsocket(w http.ResponseWriter, req *http.Request, cli
 
 	targetConn, err := proxy.connectDial("tcp", targetURL.Host, isTls)
 	if err != nil {
-		//TODO: improve error here
-		log.Print(err)
+		log.Printf("Proxy connect dial error: %v\n", err)
 		return
 	}
 	defer targetConn.Close()
@@ -205,9 +204,7 @@ func (proxy *Proxy) websocketHandshake(req *http.Request, targetSiteConn io.Read
 		return err
 	}
 	if target_site_response.StatusCode != 101 {
-		log.Printf("%v", target_site_response.StatusCode)
 		body, _ := ioutil.ReadAll(target_site_response.Body)
-		log.Printf("%s", body)
 		return fmt.Errorf("upgrading connection")
 	}
 
@@ -245,7 +242,7 @@ func (proxy *Proxy) interceptWebsocket(dst io.Writer, src io.Reader, handler fun
 		}
 		websocFrag, err := ReadWebsocketFragment(scanner)
 		if err != nil {
-			log.Printf("error decoding websocket message %v\n", err)
+			log.Printf("Error decoding websocket message %v\n", err)
 			continue
 		}
 
@@ -255,7 +252,7 @@ func (proxy *Proxy) interceptWebsocket(dst io.Writer, src io.Reader, handler fun
 		websocFrag.Write(dst)
 
 		if err != nil {
-			log.Printf("error writing websocket message %v\n", err)
+			log.Printf("Error writing websocket message %v\n", err)
 
 		}
 	}

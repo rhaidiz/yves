@@ -116,9 +116,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 			InsecureSkipVerify: true,
 		}
 
-		log.Println("here")
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-		// log.Printf("going to %v\n", req.RequestURI)
 		d := tls.Dialer{
 			Config: conf,
 		}
@@ -129,12 +127,10 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 			// not a TLS connection, go with raw tcp for now
 			// I'm assuming that if I cannot establish a TLS connection with
 			// the remote server maybe this is a plaintext websocket connection
-			log.Println("not a TLS connection, maybe websocket?")
 			clientTlsReader := bufio.NewReader(clientConn)
 			req, err := http.ReadRequest(clientTlsReader)
 			if err != nil {
-				//TODO: handle this case
-				log.Println("not a request")
+				log.Println("Not an HTTP request")
 			}
 			if isWebSocketRequest(req) {
 				p.serveWebsocket(wrt, req, clientConn, false)
@@ -143,9 +139,7 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 
 		} else {
 			// a TLS connection
-			// TODO: here somewhere I have to handle TLS websocket connections
 
-			log.Printf("destination host %s\n", destinationHost)
 			// Start a TLS connection with the client.
 			clientConn = p.startTlsWithClient(clientConn)
 			defer clientConn.Close()
@@ -163,12 +157,10 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 				if err != nil {
 					// Assume this is a HTTPS connection
 					//clientConnTls = p.startTlsWithClient(clientConn)
-					log.Printf("Not an HTTP request: %s\n", err)
+					log.Println("Not an HTTP request")
 				} else {
-					log.Printf("this is an HTTP req: %v\n", req)
 
 					if isWebSocketRequest(req) {
-						log.Println("this is a TLS websocket")
 						p.serveWebsocket(wrt, req, clientConn, true)
 					}
 					return
@@ -202,7 +194,6 @@ func (p *Proxy) forwardReq(ctx context.Context, clientRequest *http.Request, des
 			return hResp, nil
 		}
 	}
-	//some things are missing, like timeouts etc, refer to blogpost (?)
 
 	clientRequest.RequestURI = ""
 
