@@ -1,14 +1,14 @@
 # Yves
-Yves is a simple HTTP(s) Man-in-The-Middle proxy.
+Yves is a simple HTTP(s) and WebSocket Man-in-The-Middle proxy.
 
 # Main Features
-* HTTP(s) Man-in-The-Middle proxy;
-* Custom HTTP requests handlers;
-* Custom HTTP responses handlers.
+* HTTP(s) and WebSocket Man-in-The-Middle proxy;
+* Custom HTTP request\response handlers;
+* Custom WebSocket request\response handlers;
+* Custom CA for TLS connections;
+* Support for upstream proxy.
 
 # Usage
-
-More usage examples can be found in the [examples](examples/) folder.
 
 ## Start a server
 The following snippets of code shows how to start a simple mitm proxy.
@@ -25,7 +25,6 @@ import (
 )
 
 func main() {
-
         // create a new mitm proxy
         proxy := yves.NewProxy()
 
@@ -54,4 +53,8 @@ proxy.HandleRequest = func(id int64, req *http.Request) *http.Response {
 	}
 	return nil
 ```
+
+## Examples
+
+More usage can be found in the [examples](examples/) folder.
 
