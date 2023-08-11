@@ -1,20 +1,20 @@
 package main
 
 import (
-	"io/ioutil"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/rhaidiz/yves"
 )
 
 func main() {
 
-	caCert, err := ioutil.ReadFile("demo.pem")
+	caCert, err := os.ReadFile("demo.pem")
 	if err != nil {
 		log.Fatal(err)
 	}
-	caKey, err := ioutil.ReadFile("demo.key.pem")
+	caKey, err := os.ReadFile("demo.key.pem")
 	if err != nil {
 		log.Fatal(err)
 	}

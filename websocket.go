@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -204,7 +203,6 @@ func (proxy *Proxy) websocketHandshake(req *http.Request, targetSiteConn io.Read
 		return err
 	}
 	if target_site_response.StatusCode != 101 {
-		body, _ := ioutil.ReadAll(target_site_response.Body)
 		return fmt.Errorf("upgrading connection")
 	}
 

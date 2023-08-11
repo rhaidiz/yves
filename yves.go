@@ -8,7 +8,6 @@ import (
 	"crypto/x509"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -220,7 +219,7 @@ func HttpError(conn io.Writer, er string, code int) {
 		ProtoMinor: 1,
 		StatusCode: code,
 		Header:     make(map[string][]string),
-		Body:       ioutil.NopCloser(bytes.NewBufferString(er)),
+		Body:       io.NopCloser(bytes.NewBufferString(er)),
 	}
 	rsp.Header.Add("Content-Type", "text/plain; charset=utf-8")
 	rsp.Header.Add("X-Content-Type-Options", "nosniff")
