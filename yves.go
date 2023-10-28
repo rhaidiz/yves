@@ -69,7 +69,6 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	fmt.Printf("%v\n", req)
 	if req.Method != http.MethodConnect {
 		// this is a plaintext HTTP connection
 		reqClone := req.Clone(context.TODO())
@@ -130,11 +129,11 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 			req, err := http.ReadRequest(clientTlsReader)
 			if err != nil {
 				log.Println("Not an HTTP request")
+				return
 			}
 			if isWebSocketRequest(req) {
 				p.serveWebsocket(wrt, req, clientConn, false)
 			}
-			return
 
 		} else {
 			// a TLS connection
@@ -157,12 +156,12 @@ func (p *Proxy) ServeHTTP(wrt http.ResponseWriter, req *http.Request) {
 					// Assume this is a HTTPS connection
 					//clientConnTls = p.startTlsWithClient(clientConn)
 					log.Println("Not an HTTP request")
+					return
 				} else {
 
 					if isWebSocketRequest(req) {
 						p.serveWebsocket(wrt, req, clientConn, true)
 					}
-					return
 				}
 
 				resp, err := p.forwardReq(ctx, req, destinationHost)
